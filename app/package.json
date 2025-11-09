@@ -18,8 +18,10 @@
     "@solana/web3.js": "^1.87.6",
     "@switchboard-xyz/on-demand": "^3.2.0",
     "lucide-react": "^0.263.1",
+    "process": "^0.11.10",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "rollup-plugin-polyfill-node": "^0.13.0"
   },
   "devDependencies": {
     "@esbuild-plugins/node-globals-polyfill": "^0.2.3",
@@ -30,6 +32,7 @@
     "@typescript-eslint/parser": "^6.14.0",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.16",
+    "buffer": "^6.0.3",
     "crypto-browserify": "^3.12.0",
     "eslint": "^8.55.0",
     "eslint-plugin-react-hooks": "^4.6.0",
@@ -40,6 +43,7 @@
     "stream-browserify": "^3.0.0",
     "tailwindcss": "^3.3.0",
     "typescript": "^5.2.2",
-    "vite": "^5.0.8"
+    "vite": "^5.0.8",
+    "vite-plugin-node-polyfills": "^0.22.0"
   }
 }
