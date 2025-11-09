@@ -15,11 +15,10 @@
   "keywords": ["solana", "blockchain", "forms", "web3"],
   "author": "Your Name",
   "dependencies": {
-    "@coral-xyz/anchor": "^0.29.0",
+    "@coral-xyz/anchor": "^0.32.1",
     "@solana/web3.js": "^1.87.6"
   },
   "devDependencies": {
-    "@coral-xyz/anchor": "^0.32.1",
     "@types/bn.js": "^5.1.0",
     "@types/chai": "^4.3.0",
     "@types/mocha": "^9.0.0",

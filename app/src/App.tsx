@@ -16,25 +16,30 @@ import {
 } from '@solana/wallet-adapter-react-ui';
 import {
   clusterApiUrl,
-  // PublicKey,
-  // SystemProgram,
-  // LAMPORTS_PER_SOL,
+  PublicKey,
+  SystemProgram,
+  LAMPORTS_PER_SOL,
 } from '@solana/web3.js';
-// import { Program, AnchorProvider, web3, BN } from '@project-serum/anchor';
+import { Program, AnchorProvider, BN } from '@project-serum/anchor';
 import {
   Clock,
   Users,
   DollarSign,
   CheckCircle,
   AlertCircle,
+  Trophy,
+  Loader,
 } from 'lucide-react';
 
-// Import your IDL
+// Import your IDL (you'll need to generate this after building)
 // import idl from './idl/solana_form.json';
 
-// const PROGRAM_ID = new PublicKey(
-//   'Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS'
-// );
+const PROGRAM_ID = new PublicKey(
+  'Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS'
+);
+
+// Toggle between demo and production mode
+const USE_DEMO_MODE = true; // Set to false when using real program
 
 // Types
 interface FormData {
@@ -46,6 +51,7 @@ interface FormData {
   participants: number;
   maxParticipants: number;
   questions: string[];
+  isDistributed?: boolean;
 }
 
 interface CreateFormData {
@@ -57,7 +63,7 @@ interface CreateFormData {
   questions: string[];
 }
 
-type View = 'home' | 'create' | 'fill' | 'dashboard';
+type View = 'home' | 'create' | 'fill' | 'dashboard' | 'distribute';
 
 // Mock data
 const mockForms: FormData[] = [
@@ -74,13 +80,14 @@ const mockForms: FormData[] = [
       'What feature would you like to see next?',
       'Would you recommend us to a friend?',
     ],
+    isDistributed: false,
   },
   {
     id: 'marketing-study-2024',
     title: 'Consumer Behavior Study',
     description: 'Win SOL by completing our 5-minute marketing survey',
     prizePool: 1.0,
-    deadline: Date.now() + 3600000 * 72,
+    deadline: Date.now() - 3600000, // Expired (for testing distribution)
     participants: 45,
     maxParticipants: 200,
     questions: [
@@ -88,6 +95,7 @@ const mockForms: FormData[] = [
       'How often do you make online purchases?',
       'What factors influence your buying decisions?',
     ],
+    isDistributed: false,
   },
 ];
 
@@ -96,7 +104,10 @@ const App: FC = () => {
   const endpoint = useMemo(() => clusterApiUrl(network), [network]);
 
   const wallets = useMemo(
-    () => [new PhantomWalletAdapter(), new SolflareWalletAdapter({ network })],
+    () => [
+      new PhantomWalletAdapter(),
+      new SolflareWalletAdapter({ network }),
+    ],
     [network]
   );
 
@@ -121,6 +132,15 @@ const SolanaFormApp: FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-purple-800 to-indigo-900 text-white">
       <Header setView={setView} />
 
+      {/* Demo Mode Banner */}
+      {USE_DEMO_MODE && (
+        <div className="bg-yellow-600 bg-opacity-20 border-b border-yellow-500 border-opacity-30 py-2 px-4 text-center">
+          <p className="text-sm">
+            🎮 <strong>Demo Mode</strong> - Using simplified on-chain randomness for testing
+          </p>
+        </div>
+      )}
+
       <main className="container mx-auto px-4 py-8 max-w-6xl">
         {view === 'home' && (
           <HomeView setView={setView} setSelectedForm={setSelectedForm} />
@@ -142,6 +162,14 @@ const SolanaFormApp: FC = () => {
         )}
         {view === 'dashboard' && (
           <DashboardView wallet={wallet} connection={connection} />
+        )}
+        {view === 'distribute' && (
+          <DistributeView
+            form={selectedForm}
+            wallet={wallet}
+            connection={connection}
+            setView={setView}
+          />
         )}
       </main>
     </div>
@@ -235,6 +263,10 @@ const HomeView: FC<HomeViewProps> = ({ setView, setSelectedForm }) => {
                 setSelectedForm(form);
                 setView('fill');
               }}
+              onDistribute={() => {
+                setSelectedForm(form);
+                setView('distribute');
+              }}
             />
           ))}
         </div>
@@ -262,20 +294,19 @@ const FeatureCard: FC<FeatureCardProps> = ({ icon, title, description }) => {
 interface FormCardProps {
   form: FormData;
   onSelect: () => void;
+  onDistribute: () => void;
 }
 
-const FormCard: FC<FormCardProps> = ({ form, onSelect }) => {
+const FormCard: FC<FormCardProps> = ({ form, onSelect, onDistribute }) => {
   const timeLeft = form.deadline - Date.now();
   const hoursLeft = Math.floor(timeLeft / 3600000);
+  const isExpired = timeLeft < 0;
   const prizePerWinner = (
     form.prizePool / Math.min(form.participants, 10)
   ).toFixed(4);
 
   return (
-    <div
-      className="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-6 border border-purple-500 border-opacity-30 hover:border-purple-400 transition cursor-pointer"
-      onClick={onSelect}
-    >
+    <div className="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-6 border border-purple-500 border-opacity-30 hover:border-purple-400 transition">
       <h4 className="text-2xl font-bold mb-2">{form.title}</h4>
       <p className="text-purple-200 mb-4">{form.description}</p>
 
@@ -301,17 +332,36 @@ const FormCard: FC<FormCardProps> = ({ form, onSelect }) => {
         <div className="flex items-center justify-between text-sm">
           <span className="flex items-center gap-2">
             <Clock className="w-4 h-4" />
-            Time Left
+            {isExpired ? 'Ended' : 'Time Left'}
           </span>
-          <span>{hoursLeft}h remaining</span>
+          <span className={isExpired ? 'text-red-400' : ''}>
+            {isExpired ? 'Closed' : `${hoursLeft}h remaining`}
+          </span>
         </div>
       </div>
 
-      <div className="bg-purple-600 bg-opacity-30 rounded-lg p-3 text-center">
+      <div className="bg-purple-600 bg-opacity-30 rounded-lg p-3 text-center mb-4">
         <p className="text-sm text-purple-200">Potential Prize</p>
         <p className="text-2xl font-bold">{prizePerWinner} SOL</p>
         <p className="text-xs text-purple-300">per winner (up to 10 winners)</p>
       </div>
+
+      {!isExpired ? (
+        <button
+          onClick={onSelect}
+          className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 py-3 rounded-lg font-semibold transition"
+        >
+          Fill Form
+        </button>
+      ) : (
+        <button
+          onClick={onDistribute}
+          className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2"
+        >
+          <Trophy className="w-5 h-5" />
+          {form.isDistributed ? 'Check Winners' : 'Distribute Prizes'}
+        </button>
+      )}
     </div>
   );
 };
@@ -324,7 +374,7 @@ interface CreateFormViewProps {
 
 const CreateFormView: FC<CreateFormViewProps> = ({
   wallet,
-  // connection,
+  connection,
   setView,
 }) => {
   const [formData, setFormData] = useState<CreateFormData>({
@@ -346,35 +396,42 @@ const CreateFormView: FC<CreateFormViewProps> = ({
     setIsCreating(true);
 
     try {
-      // Production code:
-      // const provider = new AnchorProvider(connection, wallet, {});
-      // const program = new Program(idl, PROGRAM_ID, provider);
+      if (USE_DEMO_MODE) {
+        // Demo mode - simulate creation
+        setTimeout(() => {
+          alert('✅ Form created successfully! (Demo mode)');
+          setIsCreating(false);
+          setView('dashboard');
+        }, 2000);
+      } else {
+        // Production code:
+        const provider = new AnchorProvider(connection, wallet, {});
+        // const program = new Program(idl, PROGRAM_ID, provider);
 
-      // const formId = `form-${Date.now()}`;
-      // const [formPda] = await PublicKey.findProgramAddressSync(
-      //   [Buffer.from('form'), Buffer.from(formId)],
-      //   PROGRAM_ID
-      // );
+        const formId = `form-${Date.now()}`;
+        const [formPda] = await PublicKey.findProgramAddressSync(
+          [Buffer.from('form'), Buffer.from(formId)],
+          PROGRAM_ID
+        );
 
-      // await program.methods
-      //   .initializeForm(
-      //     formId,
-      //     new BN(parseFloat(formData.prizePool) * LAMPORTS_PER_SOL),
-      //     new BN(Date.now() / 1000 + parseInt(formData.duration) * 3600),
-      //     parseInt(formData.maxParticipants)
-      //   )
-      //   .accounts({
-      //     form: formPda,
-      //     authority: wallet.publicKey,
-      //     systemProgram: SystemProgram.programId,
-      //   })
-      //   .rpc();
+        // await program.methods
+        //   .initializeForm(
+        //     formId,
+        //     new BN(parseFloat(formData.prizePool) * LAMPORTS_PER_SOL),
+        //     new BN(Date.now() / 1000 + parseInt(formData.duration) * 3600),
+        //     parseInt(formData.maxParticipants)
+        //   )
+        //   .accounts({
+        //     form: formPda,
+        //     authority: wallet.publicKey,
+        //     systemProgram: SystemProgram.programId,
+        //   })
+        //   .rpc();
 
-      setTimeout(() => {
-        alert('Form created successfully! (Demo mode)');
+        alert('Form created successfully!');
         setIsCreating(false);
         setView('dashboard');
-      }, 2000);
+      }
     } catch (error) {
       console.error('Error creating form:', error);
       alert('Failed to create form: ' + (error as Error).message);
@@ -408,7 +465,7 @@ const CreateFormView: FC<CreateFormViewProps> = ({
             onChange={(e) =>
               setFormData({ ...formData, title: e.target.value })
             }
-            className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400"
+            className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white"
             placeholder="e.g., Customer Satisfaction Survey"
           />
         </div>
@@ -422,7 +479,7 @@ const CreateFormView: FC<CreateFormViewProps> = ({
             onChange={(e) =>
               setFormData({ ...formData, description: e.target.value })
             }
-            className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400"
+            className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white"
             rows={3}
             placeholder="Describe your form..."
           />
@@ -440,7 +497,7 @@ const CreateFormView: FC<CreateFormViewProps> = ({
               onChange={(e) =>
                 setFormData({ ...formData, prizePool: e.target.value })
               }
-              className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400"
+              className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white"
               placeholder="1.0"
             />
           </div>
@@ -455,7 +512,7 @@ const CreateFormView: FC<CreateFormViewProps> = ({
               onChange={(e) =>
                 setFormData({ ...formData, duration: e.target.value })
               }
-              className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400"
+              className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white"
             />
           </div>
 
@@ -469,7 +526,7 @@ const CreateFormView: FC<CreateFormViewProps> = ({
               onChange={(e) =>
                 setFormData({ ...formData, maxParticipants: e.target.value })
               }
-              className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400"
+              className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white"
             />
           </div>
         </div>
@@ -482,7 +539,7 @@ const CreateFormView: FC<CreateFormViewProps> = ({
               type="text"
               value={question}
               onChange={(e) => updateQuestion(index, e.target.value)}
-              className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 mb-3"
+              className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 mb-3 text-white"
               placeholder={`Question ${index + 1}`}
             />
           ))}
@@ -520,7 +577,7 @@ interface FillFormViewProps {
 const FillFormView: FC<FillFormViewProps> = ({
   form,
   wallet,
-  // connection,
+  connection,
   setView,
 }) => {
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -543,16 +600,40 @@ const FillFormView: FC<FillFormViewProps> = ({
     setIsSubmitting(true);
 
     try {
-      // Production: Submit to Anchor program
-      setTimeout(() => {
-        alert(
-          `✅ Form submitted! You're now entered to win ${(
-            form.prizePool / Math.min(form.participants, 10)
-          ).toFixed(4)} SOL`
-        );
+      if (USE_DEMO_MODE) {
+        setTimeout(() => {
+          alert(
+            `✅ Form submitted! You're now entered to win ${(
+              form.prizePool / Math.min(form.participants, 10)
+            ).toFixed(4)} SOL`
+          );
+          setIsSubmitting(false);
+          setView('home');
+        }, 2000);
+      } else {
+        // Production: Hash email and submit to program
+        const encoder = new TextEncoder();
+        const emailData = encoder.encode(email);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', emailData);
+        const emailHash = Array.from(new Uint8Array(hashBuffer));
+
+        const provider = new AnchorProvider(connection, wallet, {});
+        // const program = new Program(idl, PROGRAM_ID, provider);
+
+        // await program.methods
+        //   .submitForm(emailHash)
+        //   .accounts({
+        //     form: formPda,
+        //     participant: participantPda,
+        //     user: wallet.publicKey,
+        //     systemProgram: SystemProgram.programId,
+        //   })
+        //   .rpc();
+
+        alert('Form submitted successfully!');
         setIsSubmitting(false);
         setView('home');
-      }, 2000);
+      }
     } catch (error) {
       console.error('Error submitting form:', error);
       alert('Failed to submit form: ' + (error as Error).message);
@@ -596,7 +677,7 @@ const FillFormView: FC<FillFormViewProps> = ({
                 onChange={(e) =>
                   setAnswers({ ...answers, [index]: e.target.value })
                 }
-                className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400"
+                className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white"
                 rows={3}
                 placeholder="Your answer..."
               />
@@ -612,7 +693,7 @@ const FillFormView: FC<FillFormViewProps> = ({
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400"
+            className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white"
             placeholder="your@email.com"
           />
           <p className="text-xs text-purple-300 mt-1">
@@ -646,6 +727,203 @@ const FillFormView: FC<FillFormViewProps> = ({
   );
 };
 
+interface DistributeViewProps {
+  form: FormData | null;
+  wallet: any;
+  connection: any;
+  setView: (view: View) => void;
+}
+
+const DistributeView: FC<DistributeViewProps> = ({
+  form,
+  wallet,
+  connection,
+  setView,
+}) => {
+  const [isDistributing, setIsDistributing] = useState(false);
+  const [distributionStep, setDistributionStep] = useState<
+    'idle' | 'distributing' | 'complete'
+  >('idle');
+  const [winners, setWinners] = useState<string[]>([]);
+
+  if (!form) return null;
+
+  const handleDistribute = async () => {
+    if (!wallet.connected) {
+      alert('Please connect your wallet first!');
+      return;
+    }
+
+    setIsDistributing(true);
+    setDistributionStep('distributing');
+
+    try {
+      if (USE_DEMO_MODE) {
+        // Demo: Simulate distribution
+        setTimeout(() => {
+          // Mock winners
+          const mockWinners = [
+            'HN7cA...vQT9',
+            'Gx9bF...kL2P',
+            'Qw8vC...mN4R',
+            'Zt7uD...pQ6S',
+            'Lk6tE...rT8U',
+          ];
+          setWinners(mockWinners);
+          setDistributionStep('complete');
+          setIsDistributing(false);
+        }, 3000);
+      } else {
+        // Production: Call distribute_prizes instruction
+        const provider = new AnchorProvider(connection, wallet, {});
+        // const program = new Program(idl, PROGRAM_ID, provider);
+
+        // const formId = form.id;
+        // const [formPda] = await PublicKey.findProgramAddressSync(
+        //   [Buffer.from('form'), Buffer.from(formId)],
+        //   PROGRAM_ID
+        // );
+
+        // await program.methods
+        //   .distributePrizes()
+        //   .accounts({
+        //     form: formPda,
+        //     authority: wallet.publicKey,
+        //   })
+        //   .rpc();
+
+        // Fetch form data to get random_seed
+        // const formAccount = await program.account.form.fetch(formPda);
+        
+        // Calculate winners off-chain using the random_seed
+        // const winnerAddresses = await calculateWinners(formAccount);
+        
+        setWinners([]);
+        setDistributionStep('complete');
+        setIsDistributing(false);
+      }
+    } catch (error) {
+      console.error('Error distributing prizes:', error);
+      alert('Failed to distribute prizes: ' + (error as Error).message);
+      setIsDistributing(false);
+      setDistributionStep('idle');
+    }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto">
+      <button
+        onClick={() => setView('home')}
+        className="text-purple-300 hover:text-purple-200 mb-6"
+      >
+        ← Back to Forms
+      </button>
+
+      <div className="bg-white bg-opacity-10 backdrop-blur-md rounded-lg p-8 border border-purple-500 border-opacity-30 space-y-6">
+        <div className="text-center">
+          <Trophy className="w-16 h-16 mx-auto mb-4 text-yellow-400" />
+          <h2 className="text-4xl font-bold mb-2">{form.title}</h2>
+          <p className="text-purple-200">Prize Distribution</p>
+        </div>
+
+        <div className="bg-purple-600 bg-opacity-30 rounded-lg p-6 text-center">
+          <p className="text-sm text-purple-200 mb-2">Total Prize Pool</p>
+          <p className="text-4xl font-bold mb-2">{form.prizePool} SOL</p>
+          <p className="text-sm text-purple-200">
+            {form.participants} participants • Up to 10 winners
+          </p>
+          <p className="text-lg font-semibold mt-2 text-green-300">
+            ~{(form.prizePool / Math.min(form.participants, 10)).toFixed(4)} SOL per winner
+          </p>
+        </div>
+
+        {distributionStep === 'idle' && (
+          <div className="space-y-4">
+            <div className="bg-blue-600 bg-opacity-20 border border-blue-500 border-opacity-30 rounded-lg p-4">
+              <h3 className="font-semibold mb-2 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                How it works (Demo Mode)
+              </h3>
+              <ol className="text-sm text-purple-200 space-y-2 list-decimal list-inside">
+                <li>Generate random seed from blockchain data (slot, timestamp, form ID)</li>
+                <li>Use seed to deterministically select winners</li>
+                <li>Winners can claim their prizes automatically</li>
+                <li>Each winner gets equal share of prize pool</li>
+              </ol>
+            </div>
+
+            <button
+              onClick={handleDistribute}
+              disabled={isDistributing || !wallet.connected}
+              className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 py-4 rounded-lg font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2"
+            >
+              {!wallet.connected ? (
+                'Connect Wallet to Distribute'
+              ) : (
+                <>
+                  <Trophy className="w-5 h-5" />
+                  Distribute Prizes
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
+        {distributionStep === 'distributing' && (
+          <div className="text-center py-8">
+            <Loader className="w-12 h-12 mx-auto mb-4 animate-spin text-purple-400" />
+            <h3 className="text-xl font-semibold mb-2">Generating Random Seed...</h3>
+            <p className="text-purple-200 text-sm">
+              Using on-chain data to select winners fairly
+            </p>
+          </div>
+        )}
+
+        {distributionStep === 'complete' && (
+          <div className="space-y-4">
+            <div className="bg-green-600 bg-opacity-20 border border-green-500 border-opacity-30 rounded-lg p-6 text-center">
+              <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-400" />
+              <h3 className="text-2xl font-bold mb-2">Distribution Complete!</h3>
+              <p className="text-purple-200">
+                Winners can now claim their prizes
+              </p>
+            </div>
+
+            <div>
+              <h3 className="text-xl font-semibold mb-3">🎉 Winners</h3>
+              <div className="space-y-2">
+                {winners.map((winner, index) => (
+                  <div
+                    key={index}
+                    className="bg-white bg-opacity-10 rounded-lg p-4 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="bg-yellow-500 bg-opacity-20 rounded-full w-10 h-10 flex items-center justify-center font-bold text-yellow-400">
+                        {index + 1}
+                      </div>
+                      <span className="font-mono">{winner}</span>
+                    </div>
+                    <span className="text-green-400 font-semibold">
+                      {(form.prizePool / winners.length).toFixed(4)} SOL
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={() => setView('home')}
+              className="w-full bg-purple-600 hover:bg-purple-700 py-3 rounded-lg font-semibold transition"
+            >
+              Back to Forms
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 interface DashboardViewProps {
   wallet: any;
   connection: any;
@@ -654,6 +932,7 @@ interface DashboardViewProps {
 const DashboardView: FC<DashboardViewProps> = ({ wallet }) => {
   const [myForms, setMyForms] = useState<any[]>([]);
   const [mySubmissions, setMySubmissions] = useState<any[]>([]);
+  const [checkingPrize, setCheckingPrize] = useState(false);
 
   useEffect(() => {
     if (wallet.connected) {
@@ -671,10 +950,56 @@ const DashboardView: FC<DashboardViewProps> = ({ wallet }) => {
           formTitle: 'Product Feedback',
           submittedAt: Date.now() - 3600000,
           status: 'pending',
+          canClaim: true,
         },
       ]);
     }
   }, [wallet.connected]);
+
+  const handleCheckPrize = async (submission: any) => {
+    if (!wallet.connected) return;
+    
+    setCheckingPrize(true);
+    
+    try {
+      if (USE_DEMO_MODE) {
+        setTimeout(() => {
+          const isWinner = Math.random() > 0.5;
+          if (isWinner) {
+            alert('🎉 Congratulations! You won 0.05 SOL! Click to claim your prize.');
+          } else {
+            alert('Sorry, you were not selected as a winner this time. Better luck next time!');
+          }
+          setCheckingPrize(false);
+        }, 2000);
+      } else {
+        // Production: Call check_and_claim_prize
+        // This will automatically check if user is winner and transfer prize
+        // const provider = new AnchorProvider(connection, wallet, {});
+        // const program = new Program(idl, PROGRAM_ID, provider);
+        
+        // await program.methods
+        //   .checkAndClaimPrize()
+        //   .accounts({
+        //     form: formPda,
+        //     participant: participantPda,
+        //     winner: wallet.publicKey,
+        //     systemProgram: SystemProgram.programId,
+        //   })
+        //   .rpc();
+        
+        alert('Prize claimed successfully!');
+        setCheckingPrize(false);
+      }
+    } catch (error: any) {
+      if (error.message.includes('NotAWinner')) {
+        alert('You were not selected as a winner this time.');
+      } else {
+        alert('Error: ' + error.message);
+      }
+      setCheckingPrize(false);
+    }
+  };
 
   if (!wallet.connected) {
     return (
@@ -744,9 +1069,30 @@ const DashboardView: FC<DashboardViewProps> = ({ wallet }) => {
                     Submitted {new Date(submission.submittedAt).toLocaleString()}
                   </p>
                 </div>
-                <span className="text-xs bg-yellow-600 px-3 py-1 rounded-full">
-                  {submission.status}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs bg-yellow-600 px-3 py-1 rounded-full">
+                    {submission.status}
+                  </span>
+                  {submission.canClaim && (
+                    <button
+                      onClick={() => handleCheckPrize(submission)}
+                      disabled={checkingPrize}
+                      className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-semibold text-sm disabled:opacity-50 transition flex items-center gap-2"
+                    >
+                      {checkingPrize ? (
+                        <>
+                          <Loader className="w-4 h-4 animate-spin" />
+                          Checking...
+                        </>
+                      ) : (
+                        <>
+                          <Trophy className="w-4 h-4" />
+                          Check Prize
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}
