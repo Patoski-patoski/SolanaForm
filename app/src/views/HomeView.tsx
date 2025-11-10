@@ -1,3 +1,5 @@
+// app/src/views.HomeView.tsx
+
 import type { FC } from 'react';
 import { Users, CheckCircle, DollarSign } from 'lucide-react';
 import type { View, FormData } from '../types';

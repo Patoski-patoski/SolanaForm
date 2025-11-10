@@ -1,13 +1,15 @@
 import { useState, type FC } from 'react';
-import { AnchorProvider } from '@project-serum/anchor';
+import { AnchorProvider, type Wallet as AnchorWallet } from '@coral-xyz/anchor';
 import { CheckCircle } from 'lucide-react';
 import { USE_DEMO_MODE } from '../constants';
 import type { View, FormData } from '../types';
+import { type Connection } from '@solana/web3.js';
+import { type WalletContextState } from '@solana/wallet-adapter-react';
 
 interface FillFormViewProps {
   form: FormData | null;
-  wallet: any;
-  connection: any;
+  wallet: WalletContextState;
+  connection: Connection;
   setView: (view: View) => void;
 }
 
@@ -24,7 +26,7 @@ const FillFormView: FC<FillFormViewProps> = ({
   if (!form) return null;
 
   const handleSubmit = async () => {
-    if (!wallet.connected) {
+    if (!wallet.publicKey) {
       alert('Please connect your wallet first!');
       return;
     }
@@ -52,9 +54,14 @@ const FillFormView: FC<FillFormViewProps> = ({
         const encoder = new TextEncoder();
         const emailData = encoder.encode(email);
         const hashBuffer = await crypto.subtle.digest('SHA-256', emailData);
-        const emailHash = Array.from(new Uint8Array(hashBuffer));
+        // ✅ FIX: adapt wallet to Anchor-compatible type
+        const anchorWallet: AnchorWallet = {
+          publicKey: wallet.publicKey!,
+          signTransaction: wallet.signTransaction!,
+          signAllTransactions: wallet.signAllTransactions!,
+        } as AnchorWallet;
 
-        const provider = new AnchorProvider(connection, wallet, {});
+        const provider = new AnchorProvider(connection, anchorWallet, {});
         // const program = new Program(idl, PROGRAM_ID, provider);
 
         // await program.methods
@@ -139,7 +146,7 @@ const FillFormView: FC<FillFormViewProps> = ({
           </p>
         </div>
 
-        {wallet.connected && (
+        {wallet.publicKey && (
           <div className="bg-green-600 bg-opacity-20 border border-green-500 border-opacity-30 rounded-lg p-4">
             <p className="text-sm flex items-center gap-2">
               <CheckCircle className="w-4 h-4" />
@@ -150,12 +157,12 @@ const FillFormView: FC<FillFormViewProps> = ({
 
         <button
           onClick={handleSubmit}
-          disabled={isSubmitting || !wallet.connected}
+          disabled={isSubmitting || !wallet.publicKey}
           className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 py-4 rounded-lg font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
         >
           {isSubmitting
             ? 'Submitting...'
-            : wallet.connected
+            : wallet.publicKey
             ? 'Submit & Enter Draw'
             : 'Connect Wallet to Submit'}
         </button>
