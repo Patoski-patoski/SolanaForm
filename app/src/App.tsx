@@ -9,11 +9,16 @@ import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
 import {
   PhantomWalletAdapter,
   SolflareWalletAdapter,
+  CoinbaseWalletAdapter,
+  LedgerWalletAdapter,
+  TorusWalletAdapter,
 } from '@solana/wallet-adapter-wallets';
+
+import { BackpackWalletAdapter } from '@solana/wallet-adapter-backpack';
+import { GlowWalletAdapter } from '@solana/wallet-adapter-glow';
+
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
-import { getWalletAdapters } from '@solana/wallet-adapter-wallets';
-
 
 import { USE_DEMO_MODE } from './constants';
 import type { View, FormData } from './types';
@@ -28,7 +33,19 @@ import DistributeView from './views/DistributeView';
 const App: FC = () => {
   const network = WalletAdapterNetwork.Devnet;
   const endpoint = useMemo(() => clusterApiUrl(network), [network]);
-  const wallets = useMemo(() => getWalletAdapters({ network }), [network]);
+
+  const wallets = useMemo(
+    () => [
+      new PhantomWalletAdapter({ network }),
+      new SolflareWalletAdapter({ network }),
+      new BackpackWalletAdapter({ network }),
+      new GlowWalletAdapter({ network }),
+      new CoinbaseWalletAdapter({ network }),
+      new LedgerWalletAdapter(),
+      new TorusWalletAdapter(),
+    ],
+    [network]
+  );
 
 
   return (
