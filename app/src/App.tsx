@@ -1,4 +1,4 @@
-import React, { useState, useMemo, type FC } from 'react';
+import { useState, useMemo, type FC } from 'react';
 import {
   ConnectionProvider,
   WalletProvider,
@@ -12,6 +12,8 @@ import {
 } from '@solana/wallet-adapter-wallets';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
+import { getWalletAdapters } from '@solana/wallet-adapter-wallets';
+
 
 import { USE_DEMO_MODE } from './constants';
 import type { View, FormData } from './types';
@@ -26,14 +28,8 @@ import DistributeView from './views/DistributeView';
 const App: FC = () => {
   const network = WalletAdapterNetwork.Devnet;
   const endpoint = useMemo(() => clusterApiUrl(network), [network]);
+  const wallets = useMemo(() => getWalletAdapters({ network }), [network]);
 
-  const wallets = useMemo(
-    () => [
-      new PhantomWalletAdapter(),
-      new SolflareWalletAdapter({ network }),
-    ],
-    [network]
-  );
 
   return (
     <ConnectionProvider endpoint={endpoint}>
@@ -81,7 +77,6 @@ const SolanaFormApp: FC = () => {
             wallet={wallet}
             connection={connection}
             setView={setView}
-          }
         />
         )}
         {view === 'dashboard' && (
