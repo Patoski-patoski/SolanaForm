@@ -3,8 +3,8 @@ import { AnchorProvider, Program } from '@coral-xyz/anchor';
 import { AlertCircle, CheckCircle, Loader, Trophy } from 'lucide-react';
 import { USE_DEMO_MODE, PROGRAM_ID } from '../constants';
 import type { View, FormData } from '../types';
-import idl from '../../idl/solana_form.json';
-import { type SolanaForm } from '../../idl/solana_form';
+import idl from '../idl/solana_form.json';
+import { type SolanaForm } from '../idl/solana_form';
 import { SystemProgram } from '@solana/web3.js';
 
 interface DistributeViewProps {
@@ -84,7 +84,7 @@ const DistributeView: FC<DistributeViewProps> = ({
           idl as any,
           PROGRAM_ID,
           provider
-        );
+        ) as any;
 
         await program.methods
           .distributePrizes()
@@ -97,7 +97,7 @@ const DistributeView: FC<DistributeViewProps> = ({
 
         // Fetch all participants for this form
         const participantAccounts = await program.account.participant.all([
-          { memcmp: { offset: 8, bytes: form.publicKey.toBase58() } },
+          { memcmp: { offset: 8, bytes: form.publicKey!.toBase58() } },
         ]);
 
         // Fetch the updated form account to get the random seed

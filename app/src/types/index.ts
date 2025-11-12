@@ -1,3 +1,6 @@
+// app/src/types/index.ts
+import type { PublicKey } from '@solana/web3.js';
+
 export interface FormData {
   id: string;
   title: string;
@@ -8,6 +11,7 @@ export interface FormData {
   maxParticipants: number;
   questions: string[];
   isDistributed?: boolean;
+  publicKey?: PublicKey; // Add optional publicKey for on-chain forms
 }
 
 export interface CreateFormData {

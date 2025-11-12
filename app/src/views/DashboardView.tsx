@@ -1,9 +1,9 @@
 import { useState, useEffect, type FC } from 'react';
 import { AlertCircle, Loader, Trophy } from 'lucide-react';
 import { Program, AnchorProvider } from '@coral-xyz/anchor';
-import { LAMPORTS_PER_SOL, PublicKey, SystemProgram } from '@solana/web3.js';
-import idl from '../../idl/solana_form.json';
-import { type SolanaForm } from '../../idl/solana_form';
+import { LAMPORTS_PER_SOL, SystemProgram } from '@solana/web3.js';
+import idl from '../idl/solana_form.json';
+import { type SolanaForm } from '../idl/solana_form';
 import { USE_DEMO_MODE, PROGRAM_ID } from '../constants';
 import StatCard from '../components/StatCard';
 
@@ -37,7 +37,7 @@ const DashboardView: FC<DashboardViewProps> = ({ wallet, connection }) => {
           idl as any,
           PROGRAM_ID,
           provider
-        );
+        ) as any;
 
         // Fetch forms created by the user
         const formAccounts = await program.account.form.all([
@@ -131,7 +131,7 @@ const DashboardView: FC<DashboardViewProps> = ({ wallet, connection }) => {
           idl as any,
           PROGRAM_ID,
           provider
-        );
+        ) as any;
 
         await program.methods
           .checkAndClaimPrize()

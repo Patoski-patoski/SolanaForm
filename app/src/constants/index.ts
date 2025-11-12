@@ -1,11 +1,17 @@
-import { PublicKey } from '@solana/web3.js';
+// app/src/constants/index.ts
+import { PublicKey, clusterApiUrl } from '@solana/web3.js';
+import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
 import type { FormData } from '../types';
 
+
 export const PROGRAM_ID = new PublicKey(
-  'Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS'
+  'FnBCbFZ1Y4rhjRuKe94HDfXcxkjL9DiU21YhCJzHRcZY'
 );
 
-export const USE_DEMO_MODE = true;
+export const NETWORK = WalletAdapterNetwork.Devnet;
+export const RPC_URL = clusterApiUrl(NETWORK);
+
+export const USE_DEMO_MODE = false;
 
 export const mockForms: FormData[] = [
   {

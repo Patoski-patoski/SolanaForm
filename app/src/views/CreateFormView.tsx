@@ -1,8 +1,8 @@
+// app/src/views/CreateFormView.tsx
 import { useState, type FC } from 'react';
 import { PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { Program, AnchorProvider, BN } from '@coral-xyz/anchor';
-import idl from '../../idl/solana_form.json';
-import { type SolanaForm } from '../../idl/solana_form';
+import idl from '../idl/solana_form.json';
 import { USE_DEMO_MODE, PROGRAM_ID } from '../constants';
 import type { View, CreateFormData } from '../types';
 
@@ -33,6 +33,18 @@ const CreateFormView: FC<CreateFormViewProps> = ({
       return;
     }
 
+    // Validate input
+    if (!formData.title || !formData.prizePool || !formData.duration) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    const prizeAmount = parseFloat(formData.prizePool);
+    if (isNaN(prizeAmount) || prizeAmount <= 0) {
+      alert('Please enter a valid prize pool amount');
+      return;
+    }
+
     setIsCreating(true);
 
     try {
@@ -45,8 +57,10 @@ const CreateFormView: FC<CreateFormViewProps> = ({
         }, 2000);
       } else {
         // Production code:
-        const provider = new AnchorProvider(connection, wallet, {});
-        const program = new Program<SolanaForm>(
+        const provider = new AnchorProvider(connection, wallet, {
+          commitment: 'confirmed',
+        });
+        const program = new Program(
           idl as any,
           PROGRAM_ID,
           provider
@@ -58,11 +72,13 @@ const CreateFormView: FC<CreateFormViewProps> = ({
           program.programId
         );
 
+        const deadline = Math.floor(Date.now() / 1000) + parseInt(formData.duration) * 3600;
+
         await program.methods
           .initializeForm(
             formId,
-            new BN(parseFloat(formData.prizePool) * LAMPORTS_PER_SOL),
-            new BN(Date.now() / 1000 + parseInt(formData.duration) * 3600),
+            new BN(prizeAmount * LAMPORTS_PER_SOL),
+            new BN(deadline),
             parseInt(formData.maxParticipants)
           )
           .accounts({
@@ -72,7 +88,17 @@ const CreateFormView: FC<CreateFormViewProps> = ({
           })
           .rpc();
 
-        alert('Form created successfully!');
+        // Optionally deposit prize immediately
+        await program.methods
+          .depositPrize()
+          .accounts({
+            form: formPda,
+            authority: wallet.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
+
+        alert('Form created and funded successfully!');
         setIsCreating(false);
         setView('dashboard');
       }
@@ -88,6 +114,15 @@ const CreateFormView: FC<CreateFormViewProps> = ({
       ...formData,
       questions: [...formData.questions, ''],
     });
+  };
+
+  const removeQuestion = (index: number) => {
+    if (formData.questions.length <= 1) {
+      alert('You must have at least one question');
+      return;
+    }
+    const newQuestions = formData.questions.filter((_, i) => i !== index);
+    setFormData({ ...formData, questions: newQuestions });
   };
 
   const updateQuestion = (index: number, value: string) => {
@@ -109,7 +144,7 @@ const CreateFormView: FC<CreateFormViewProps> = ({
             onChange={(e) =>
               setFormData({ ...formData, title: e.target.value })
             }
-            className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white"
+            className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white placeholder-purple-300"
             placeholder="e.g., Customer Satisfaction Survey"
           />
         </div>
@@ -123,7 +158,7 @@ const CreateFormView: FC<CreateFormViewProps> = ({
             onChange={(e) =>
               setFormData({ ...formData, description: e.target.value })
             }
-            className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white"
+            className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white placeholder-purple-300"
             rows={3}
             placeholder="Describe your form..."
           />
@@ -137,11 +172,12 @@ const CreateFormView: FC<CreateFormViewProps> = ({
             <input
               type="number"
               step="0.1"
+              min="0"
               value={formData.prizePool}
               onChange={(e) =>
                 setFormData({ ...formData, prizePool: e.target.value })
               }
-              className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white"
+              className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white placeholder-purple-300"
               placeholder="1.0"
             />
           </div>
@@ -152,11 +188,12 @@ const CreateFormView: FC<CreateFormViewProps> = ({
             </label>
             <input
               type="number"
+              min="1"
               value={formData.duration}
               onChange={(e) =>
                 setFormData({ ...formData, duration: e.target.value })
               }
-              className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white"
+              className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white placeholder-purple-300"
             />
           </div>
 
@@ -166,11 +203,12 @@ const CreateFormView: FC<CreateFormViewProps> = ({
             </label>
             <input
               type="number"
+              min="1"
               value={formData.maxParticipants}
               onChange={(e) =>
                 setFormData({ ...formData, maxParticipants: e.target.value })
               }
-              className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white"
+              className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white placeholder-purple-300"
             />
           </div>
         </div>
@@ -178,18 +216,27 @@ const CreateFormView: FC<CreateFormViewProps> = ({
         <div>
           <label className="block text-sm font-semibold mb-2">Questions</label>
           {formData.questions.map((question, index) => (
-            <input
-              key={index}
-              type="text"
-              value={question}
-              onChange={(e) => updateQuestion(index, e.target.value)}
-              className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 mb-3 text-white"
-              placeholder={`Question ${index + 1}`}
-            />
+            <div key={index} className="flex gap-2 mb-3">
+              <input
+                type="text"
+                value={question}
+                onChange={(e) => updateQuestion(index, e.target.value)}
+                className="flex-1 px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white placeholder-purple-300"
+                placeholder={`Question ${index + 1}`}
+              />
+              {formData.questions.length > 1 && (
+                <button
+                  onClick={() => removeQuestion(index)}
+                  className="px-3 py-2 bg-red-500 bg-opacity-20 hover:bg-opacity-30 rounded-lg text-red-300 transition"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           ))}
           <button
             onClick={addQuestion}
-            className="text-purple-300 hover:text-purple-200 text-sm"
+            className="text-purple-300 hover:text-purple-200 text-sm font-semibold"
           >
             + Add Question
           </button>

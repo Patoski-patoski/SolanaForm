@@ -1,18 +1,10 @@
+// app/src/views/FillFormView.tsx
 import { useState, type FC } from 'react';
-import {
-  AnchorProvider,
-  Program,
-  type Wallet as AnchorWallet,
-} from '@coral-xyz/anchor';
+import { AnchorProvider, Program, type Wallet as AnchorWallet } from '@coral-xyz/anchor';
 import { CheckCircle } from 'lucide-react';
-import {
-  PublicKey,
-  SystemProgram,
-  type Connection,
-} from '@solana/web3.js';
+import { PublicKey, SystemProgram, type Connection } from '@solana/web3.js';
 import { type WalletContextState } from '@solana/wallet-adapter-react';
-import idl from '../../idl/solana_form.json';
-import { type SolanaForm } from '../../idl/solana_form';
+import idl from '../idl/solana_form.json';
 import { USE_DEMO_MODE, PROGRAM_ID } from '../constants';
 import type { View, FormData } from '../types';
 
@@ -33,7 +25,19 @@ const FillFormView: FC<FillFormViewProps> = ({
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!form || !form.publicKey) return null;
+  if (!form) {
+    return (
+      <div className="text-center py-16">
+        <p className="text-purple-200">No form selected</p>
+        <button
+          onClick={() => setView('home')}
+          className="mt-4 text-purple-300 hover:text-purple-200"
+        >
+          ← Back to Forms
+        </button>
+      </div>
+    );
+  }
 
   const handleSubmit = async () => {
     if (!wallet.publicKey) {
@@ -43,6 +47,15 @@ const FillFormView: FC<FillFormViewProps> = ({
 
     if (!email) {
       alert('Please enter your email address');
+      return;
+    }
+
+    // Validate all questions are answered
+    const unansweredQuestions = form.questions.filter(
+      (_, index) => !answers[index] || answers[index].trim() === ''
+    );
+    if (unansweredQuestions.length > 0) {
+      alert('Please answer all questions before submitting');
       return;
     }
 
@@ -63,8 +76,8 @@ const FillFormView: FC<FillFormViewProps> = ({
         // Production: Hash email and submit to program
         const encoder = new TextEncoder();
         const emailData = encoder.encode(email);
-        const hashBuffer = await crypto.subtle.digest('SHA-265', emailData);
-        const emailHash = Buffer.from(hashBuffer);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', emailData);
+        const emailHash = Array.from(new Uint8Array(hashBuffer));
 
         const anchorWallet: AnchorWallet = {
           publicKey: wallet.publicKey!,
@@ -72,14 +85,20 @@ const FillFormView: FC<FillFormViewProps> = ({
           signAllTransactions: wallet.signAllTransactions!,
         } as AnchorWallet;
 
-        const provider = new AnchorProvider(connection, anchorWallet, {});
-        const program = new Program<SolanaForm>(
+        const provider = new AnchorProvider(connection, anchorWallet, {
+          commitment: 'confirmed',
+        });
+        const program = new Program(
           idl as any,
-          PROGRAM_ID,
+          // PROGRAM_ID,
           provider
         );
 
-        const [participantPda] = await PublicKey.findProgramAddress(
+        if (!form.publicKey) {
+          throw new Error('Form does not have a publicKey');
+        }
+
+        const [participantPda] = await PublicKey.findProgramAddressSync(
           [
             Buffer.from('participant'),
             form.publicKey.toBuffer(),
@@ -127,7 +146,7 @@ const FillFormView: FC<FillFormViewProps> = ({
         <div className="bg-purple-600 bg-opacity-30 rounded-lg p-4">
           <p className="text-sm text-purple-200">💰 You could win</p>
           <p className="text-3xl font-bold">
-            {(form.prizePool / Math.min(form.participants, 10)).toFixed(4)} SOL
+            {(form.prizePool / Math.min(form.participants || 1, 10)).toFixed(4)} SOL
           </p>
           <p className="text-xs text-purple-300 mt-1">
             {form.participants} participants • Up to 10 winners
@@ -145,7 +164,7 @@ const FillFormView: FC<FillFormViewProps> = ({
                 onChange={(e) =>
                   setAnswers({ ...answers, [index]: e.target.value })
                 }
-                className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white"
+                className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white placeholder-purple-300"
                 rows={3}
                 placeholder="Your answer..."
               />
@@ -161,7 +180,7 @@ const FillFormView: FC<FillFormViewProps> = ({
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white"
+            className="w-full px-4 py-3 rounded-lg bg-white bg-opacity-20 border border-purple-500 border-opacity-30 focus:outline-none focus:border-purple-400 text-white placeholder-purple-300"
             placeholder="your@email.com"
           />
           <p className="text-xs text-purple-300 mt-1">
