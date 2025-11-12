@@ -1,6 +1,8 @@
 import { useState, type FC } from 'react';
 import { PublicKey, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
-import { Program, AnchorProvider, BN } from '@project-serum/anchor';
+import { Program, AnchorProvider, BN } from '@coral-xyz/anchor';
+import idl from '../../idl/solana_form.json';
+import { type SolanaForm } from '../../idl/solana_form';
 import { USE_DEMO_MODE, PROGRAM_ID } from '../constants';
 import type { View, CreateFormData } from '../types';
 
@@ -44,27 +46,31 @@ const CreateFormView: FC<CreateFormViewProps> = ({
       } else {
         // Production code:
         const provider = new AnchorProvider(connection, wallet, {});
-        // const program = new Program(idl, PROGRAM_ID, provider);
+        const program = new Program<SolanaForm>(
+          idl as any,
+          PROGRAM_ID,
+          provider
+        );
 
         const formId = `form-${Date.now()}`;
         const [formPda] = await PublicKey.findProgramAddressSync(
           [Buffer.from('form'), Buffer.from(formId)],
-          PROGRAM_ID
+          program.programId
         );
 
-        // await program.methods
-        //   .initializeForm(
-        //     formId,
-        //     new BN(parseFloat(formData.prizePool) * LAMPORTS_PER_SOL),
-        //     new BN(Date.now() / 1000 + parseInt(formData.duration) * 3600),
-        //     parseInt(formData.maxParticipants)
-        //   )
-        //   .accounts({
-        //     form: formPda,
-        //     authority: wallet.publicKey,
-        //     systemProgram: SystemProgram.programId,
-        //   })
-        //   .rpc();
+        await program.methods
+          .initializeForm(
+            formId,
+            new BN(parseFloat(formData.prizePool) * LAMPORTS_PER_SOL),
+            new BN(Date.now() / 1000 + parseInt(formData.duration) * 3600),
+            parseInt(formData.maxParticipants)
+          )
+          .accounts({
+            form: formPda,
+            authority: wallet.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
 
         alert('Form created successfully!');
         setIsCreating(false);

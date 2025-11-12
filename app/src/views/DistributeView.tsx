@@ -1,8 +1,11 @@
 import { useState, type FC } from 'react';
-import { AnchorProvider } from '@project-serum/anchor';
+import { AnchorProvider, Program } from '@coral-xyz/anchor';
 import { AlertCircle, CheckCircle, Loader, Trophy } from 'lucide-react';
-import { USE_DEMO_MODE } from '../constants';
+import { USE_DEMO_MODE, PROGRAM_ID } from '../constants';
 import type { View, FormData } from '../types';
+import idl from '../../idl/solana_form.json';
+import { type SolanaForm } from '../../idl/solana_form';
+import { SystemProgram } from '@solana/web3.js';
 
 interface DistributeViewProps {
   form: FormData | null;
@@ -10,6 +13,31 @@ interface DistributeViewProps {
   connection: any;
   setView: (view: View) => void;
 }
+
+// Helper function to deterministically select winners based on a seed
+const calculateWinners = (
+  participants: any[],
+  seed: Buffer,
+  maxWinners: number
+) => {
+  if (participants.length === 0) return [];
+
+  // A simple pseudo-random number generator using the seed
+  let random = new DataView(seed.buffer).getUint32(0, true);
+  const shuffle = (arr: any[]) => {
+    for (let i = arr.length - 1; i > 0; i--) {
+      random = (random * 1664525 + 1013904223) | 0; // LCG
+      const j = Math.abs(random) % (i + 1);
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  };
+
+  const shuffled = shuffle([...participants]);
+  return shuffled
+    .slice(0, maxWinners)
+    .map((p) => p.account.user.toBase58());
+};
 
 const DistributeView: FC<DistributeViewProps> = ({
   form,
@@ -23,7 +51,7 @@ const DistributeView: FC<DistributeViewProps> = ({
   >('idle');
   const [winners, setWinners] = useState<string[]>([]);
 
-  if (!form) return null;
+  if (!form || !form.publicKey) return null;
 
   const handleDistribute = async () => {
     if (!wallet.connected) {
@@ -38,7 +66,6 @@ const DistributeView: FC<DistributeViewProps> = ({
       if (USE_DEMO_MODE) {
         // Demo: Simulate distribution
         setTimeout(() => {
-          // Mock winners
           const mockWinners = [
             'HN7cA...vQT9',
             'Gx9bF...kL2P',
@@ -53,29 +80,38 @@ const DistributeView: FC<DistributeViewProps> = ({
       } else {
         // Production: Call distribute_prizes instruction
         const provider = new AnchorProvider(connection, wallet, {});
-        // const program = new Program(idl, PROGRAM_ID, provider);
+        const program = new Program<SolanaForm>(
+          idl as any,
+          PROGRAM_ID,
+          provider
+        );
 
-        // const formId = form.id;
-        // const [formPda] = await PublicKey.findProgramAddressSync(
-        //   [Buffer.from('form'), Buffer.from(formId)],
-        //   PROGRAM_ID
-        // );
+        await program.methods
+          .distributePrizes()
+          .accounts({
+            form: form.publicKey,
+            authority: wallet.publicKey,
+            systemProgram: SystemProgram.programId, // Added for recent Anchor versions
+          })
+          .rpc();
 
-        // await program.methods
-        //   .distributePrizes()
-        //   .accounts({
-        //     form: formPda,
-        //     authority: wallet.publicKey,
-        //   })
-        //   .rpc();
+        // Fetch all participants for this form
+        const participantAccounts = await program.account.participant.all([
+          { memcmp: { offset: 8, bytes: form.publicKey.toBase58() } },
+        ]);
 
-        // Fetch form data to get random_seed
-        // const formAccount = await program.account.form.fetch(formPda);
-        
-        // Calculate winners off-chain using the random_seed
-        // const winnerAddresses = await calculateWinners(formAccount);
-        
-        setWinners([]);
+        // Fetch the updated form account to get the random seed
+        const formAccount = await program.account.form.fetch(form.publicKey);
+        const seed = Buffer.from(formAccount.randomSeed);
+
+        // Calculate winners off-chain using the on-chain seed
+        const winnerAddresses = calculateWinners(
+          participantAccounts,
+          seed,
+          10 // Max winners
+        );
+
+        setWinners(winnerAddresses);
         setDistributionStep('complete');
         setIsDistributing(false);
       }
@@ -110,7 +146,8 @@ const DistributeView: FC<DistributeViewProps> = ({
             {form.participants} participants • Up to 10 winners
           </p>
           <p className="text-lg font-semibold mt-2 text-green-300">
-            ~{(form.prizePool / Math.min(form.participants, 10)).toFixed(4)} SOL per winner
+            ~{(form.prizePool / Math.min(form.participants, 10)).toFixed(4)} SOL
+            per winner
           </p>
         </div>
 
@@ -119,13 +156,17 @@ const DistributeView: FC<DistributeViewProps> = ({
             <div className="bg-blue-600 bg-opacity-20 border border-blue-500 border-opacity-30 rounded-lg p-4">
               <h3 className="font-semibold mb-2 flex items-center gap-2">
                 <AlertCircle className="w-5 h-5" />
-                How it works (Demo Mode)
+                How it works
               </h3>
               <ol className="text-sm text-purple-200 space-y-2 list-decimal list-inside">
-                <li>Generate random seed from blockchain data (slot, timestamp, form ID)</li>
-                <li>Use seed to deterministically select winners</li>
-                <li>Winners can claim their prizes automatically</li>
-                <li>Each winner gets equal share of prize pool</li>
+                <li>
+                  The program generates a random seed from blockchain data.
+                </li>
+                <li>
+                  This app uses the seed to deterministically select winners.
+                </li>
+                <li>Winners can then claim their prizes from the dashboard.</li>
+                <li>Each winner gets an equal share of the prize pool.</li>
               </ol>
             </div>
 
@@ -149,7 +190,9 @@ const DistributeView: FC<DistributeViewProps> = ({
         {distributionStep === 'distributing' && (
           <div className="text-center py-8">
             <Loader className="w-12 h-12 mx-auto mb-4 animate-spin text-purple-400" />
-            <h3 className="text-xl font-semibold mb-2">Generating Random Seed...</h3>
+            <h3 className="text-xl font-semibold mb-2">
+              Generating Random Seed...
+            </h3>
             <p className="text-purple-200 text-sm">
               Using on-chain data to select winners fairly
             </p>
@@ -160,7 +203,9 @@ const DistributeView: FC<DistributeViewProps> = ({
           <div className="space-y-4">
             <div className="bg-green-600 bg-opacity-20 border border-green-500 border-opacity-30 rounded-lg p-6 text-center">
               <CheckCircle className="w-12 h-12 mx-auto mb-3 text-green-400" />
-              <h3 className="text-2xl font-bold mb-2">Distribution Complete!</h3>
+              <h3 className="text-2xl font-bold mb-2">
+                Distribution Complete!
+              </h3>
               <p className="text-purple-200">
                 Winners can now claim their prizes
               </p>

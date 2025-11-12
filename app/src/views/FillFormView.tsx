@@ -1,10 +1,20 @@
 import { useState, type FC } from 'react';
-import { AnchorProvider, type Wallet as AnchorWallet } from '@coral-xyz/anchor';
+import {
+  AnchorProvider,
+  Program,
+  type Wallet as AnchorWallet,
+} from '@coral-xyz/anchor';
 import { CheckCircle } from 'lucide-react';
-import { USE_DEMO_MODE } from '../constants';
-import type { View, FormData } from '../types';
-import { type Connection } from '@solana/web3.js';
+import {
+  PublicKey,
+  SystemProgram,
+  type Connection,
+} from '@solana/web3.js';
 import { type WalletContextState } from '@solana/wallet-adapter-react';
+import idl from '../../idl/solana_form.json';
+import { type SolanaForm } from '../../idl/solana_form';
+import { USE_DEMO_MODE, PROGRAM_ID } from '../constants';
+import type { View, FormData } from '../types';
 
 interface FillFormViewProps {
   form: FormData | null;
@@ -23,7 +33,7 @@ const FillFormView: FC<FillFormViewProps> = ({
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  if (!form) return null;
+  if (!form || !form.publicKey) return null;
 
   const handleSubmit = async () => {
     if (!wallet.publicKey) {
@@ -53,8 +63,9 @@ const FillFormView: FC<FillFormViewProps> = ({
         // Production: Hash email and submit to program
         const encoder = new TextEncoder();
         const emailData = encoder.encode(email);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', emailData);
-        // ✅ FIX: adapt wallet to Anchor-compatible type
+        const hashBuffer = await crypto.subtle.digest('SHA-265', emailData);
+        const emailHash = Buffer.from(hashBuffer);
+
         const anchorWallet: AnchorWallet = {
           publicKey: wallet.publicKey!,
           signTransaction: wallet.signTransaction!,
@@ -62,17 +73,30 @@ const FillFormView: FC<FillFormViewProps> = ({
         } as AnchorWallet;
 
         const provider = new AnchorProvider(connection, anchorWallet, {});
-        // const program = new Program(idl, PROGRAM_ID, provider);
+        const program = new Program<SolanaForm>(
+          idl as any,
+          PROGRAM_ID,
+          provider
+        );
 
-        // await program.methods
-        //   .submitForm(emailHash)
-        //   .accounts({
-        //     form: formPda,
-        //     participant: participantPda,
-        //     user: wallet.publicKey,
-        //     systemProgram: SystemProgram.programId,
-        //   })
-        //   .rpc();
+        const [participantPda] = await PublicKey.findProgramAddress(
+          [
+            Buffer.from('participant'),
+            form.publicKey.toBuffer(),
+            wallet.publicKey.toBuffer(),
+          ],
+          program.programId
+        );
+
+        await program.methods
+          .submitForm(emailHash)
+          .accounts({
+            form: form.publicKey,
+            participant: participantPda,
+            user: wallet.publicKey,
+            systemProgram: SystemProgram.programId,
+          })
+          .rpc();
 
         alert('Form submitted successfully!');
         setIsSubmitting(false);

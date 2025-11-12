@@ -1,0 +1,594 @@
+{
+  "address": "FnBCbFZ1Y4rhjRuKe94HDfXcxkjL9DiU21YhCJzHRcZY",
+  "metadata": {
+    "name": "solana_form",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "check_and_claim_prize",
+      "docs": [
+        "Check if participant is a winner and mark them",
+        "Anyone can call this to check/claim their winner status"
+      ],
+      "discriminator": [
+        164,
+        236,
+        31,
+        184,
+        255,
+        148,
+        54,
+        221
+      ],
+      "accounts": [
+        {
+          "name": "form",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  111,
+                  114,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "form.form_id",
+                "account": "Form"
+              }
+            ]
+          },
+          "relations": [
+            "participant"
+          ]
+        },
+        {
+          "name": "participant",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  97,
+                  114,
+                  116,
+                  105,
+                  99,
+                  105,
+                  112,
+                  97,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "form"
+              },
+              {
+                "kind": "account",
+                "path": "winner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "winner",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_form",
+      "docs": [
+        "Close form and refund remaining funds to authority"
+      ],
+      "discriminator": [
+        58,
+        128,
+        2,
+        243,
+        149,
+        169,
+        144,
+        144
+      ],
+      "accounts": [
+        {
+          "name": "form",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  111,
+                  114,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "form.form_id",
+                "account": "Form"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "form"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "deposit_prize",
+      "docs": [
+        "Deposit prize pool by form creator"
+      ],
+      "discriminator": [
+        245,
+        164,
+        83,
+        19,
+        96,
+        75,
+        73,
+        130
+      ],
+      "accounts": [
+        {
+          "name": "form",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  111,
+                  114,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "form.form_id",
+                "account": "Form"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "form"
+          ]
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "distribute_prizes",
+      "docs": [
+        "Generate random seed and distribute prizes (simplified for demo)"
+      ],
+      "discriminator": [
+        154,
+        99,
+        201,
+        93,
+        82,
+        104,
+        73,
+        232
+      ],
+      "accounts": [
+        {
+          "name": "form",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  111,
+                  114,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "form.form_id",
+                "account": "Form"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "form"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_form",
+      "docs": [
+        "Initialize a new form with prize pool"
+      ],
+      "discriminator": [
+        173,
+        39,
+        56,
+        137,
+        179,
+        121,
+        137,
+        253
+      ],
+      "accounts": [
+        {
+          "name": "form",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  111,
+                  114,
+                  109
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "form_id"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "form_id",
+          "type": "string"
+        },
+        {
+          "name": "prize_pool",
+          "type": "u64"
+        },
+        {
+          "name": "deadline",
+          "type": "i64"
+        },
+        {
+          "name": "max_participants",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "submit_form",
+      "docs": [
+        "Submit form and register participant"
+      ],
+      "discriminator": [
+        251,
+        129,
+        69,
+        66,
+        111,
+        39,
+        186,
+        171
+      ],
+      "accounts": [
+        {
+          "name": "form",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  102,
+                  111,
+                  114,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "form.form_id",
+                "account": "Form"
+              }
+            ]
+          }
+        },
+        {
+          "name": "participant",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  97,
+                  114,
+                  116,
+                  105,
+                  99,
+                  105,
+                  112,
+                  97,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "form"
+              },
+              {
+                "kind": "account",
+                "path": "user"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "email_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Form",
+      "discriminator": [
+        38,
+        144,
+        5,
+        62,
+        130,
+        234,
+        18,
+        216
+      ]
+    },
+    {
+      "name": "Participant",
+      "discriminator": [
+        32,
+        142,
+        108,
+        79,
+        247,
+        179,
+        54,
+        6
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "FormInactive",
+      "msg": "Form is not active"
+    },
+    {
+      "code": 6001,
+      "name": "AlreadyDistributed",
+      "msg": "Prizes already distributed"
+    },
+    {
+      "code": 6002,
+      "name": "PrizePoolFilled",
+      "msg": "Prize pool already filled"
+    },
+    {
+      "code": 6003,
+      "name": "DeadlinePassed",
+      "msg": "Deadline has passed"
+    },
+    {
+      "code": 6004,
+      "name": "DeadlineNotReached",
+      "msg": "Deadline has not been reached yet"
+    },
+    {
+      "code": 6005,
+      "name": "MaxParticipantsReached",
+      "msg": "Maximum participants reached"
+    },
+    {
+      "code": 6006,
+      "name": "Unauthorized",
+      "msg": "Unauthorized"
+    },
+    {
+      "code": 6007,
+      "name": "NoParticipants",
+      "msg": "No participants to distribute to"
+    },
+    {
+      "code": 6008,
+      "name": "NotDistributed",
+      "msg": "Prizes not distributed yet"
+    },
+    {
+      "code": 6009,
+      "name": "AlreadyClaimed",
+      "msg": "Prize already claimed"
+    },
+    {
+      "code": 6010,
+      "name": "CannotClose",
+      "msg": "Cannot close form with active participants"
+    },
+    {
+      "code": 6011,
+      "name": "NotAWinner",
+      "msg": "Participant is not a winner"
+    }
+  ],
+  "types": [
+    {
+      "name": "Form",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "form_id",
+            "type": "string"
+          },
+          {
+            "name": "prize_pool",
+            "type": "u64"
+          },
+          {
+            "name": "collected_amount",
+            "type": "u64"
+          },
+          {
+            "name": "deadline",
+            "type": "i64"
+          },
+          {
+            "name": "max_participants",
+            "type": "u32"
+          },
+          {
+            "name": "participant_count",
+            "type": "u32"
+          },
+          {
+            "name": "is_active",
+            "type": "bool"
+          },
+          {
+            "name": "is_distributed",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "random_seed",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Participant",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "form",
+            "type": "pubkey"
+          },
+          {
+            "name": "email_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          },
+          {
+            "name": "participant_index",
+            "type": "u32"
+          },
+          {
+            "name": "is_winner",
+            "type": "bool"
+          },
+          {
+            "name": "claimed",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}
